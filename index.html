@@ -2,77 +2,63 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>春日漫步·交互地图</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+    <title>春日漫步·轻量版</title>
     <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
     <style>
         body { margin: 0; padding: 0; background: #fdf6e3; overflow: hidden; touch-action: none; font-family: sans-serif; }
-        
-        /* 视口容器 */
-        #viewport { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        
-        /* 缩放层：点位在这个层级，会随地图同步放大 */
-        #panzoom-element { position: relative; display: inline-block; cursor: grab; }
-        
-        .main-map { display: block; height: 90vh; width: auto; border: 3px solid #e1d3b0; border-radius: 8px; }
+        #viewport { width: 100vw; height: 100vh; overflow: auto; }
+        #panzoom-element { position: relative; display: inline-block; transform-origin: 0 0; }
+        .main-map { display: block; width: 100vw; height: auto; }
 
-        /* 交互点位样式 */
+        /* 点位样式 */
         .poi {
-            position: absolute; width: 28px; height: 28px;
-            background: rgba(255, 87, 34, 0.7); border: 2px solid #fff; border-radius: 50%;
+            position: absolute; width: 30px; height: 30px;
+            background: rgba(255, 105, 180, 0.7); border: 2px solid #fff; border-radius: 50%;
             transform: translate(-50%, -50%); cursor: pointer; z-index: 10;
-            animation: pulse 1.8s infinite;
         }
 
-        @keyframes pulse {
-            0% { transform: translate(-50%, -50%) scale(0.9); box-shadow: 0 0 0 0 rgba(255,255,255, 0.8); }
-            70% { transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 0 0 12px rgba(255,255,255, 0); }
-            100% { transform: translate(-50%, -50%) scale(0.9); box-shadow: 0 0 0 0 rgba(255,255,255, 0); }
-        }
-
-        /* 桃花雨画布：固定在屏幕最上层，不随缩放移动 */
+        /* 桃花雨画布 */
         #petalCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
         
-        .hint { position: fixed; bottom: 15px; width: 100%; text-align: center; color: #8d7a5b; font-size: 12px; pointer-events: none; }
+        /* 简单的信息提示区 */
+        #info-bar { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: white; padding: 8px 15px; border-radius: 20px; font-size: 13px; display: none; z-index: 110; }
     </style>
 </head>
 <body>
 
+    <div id="info-bar"></div>
+
     <div id="viewport">
         <div id="panzoom-element">
-            <img src="Gemini_Generated_Image_ngcld3ngcld3ngcl.png" class="main-map" id="mapImg">
-            
-            <div class="poi" style="top: 55%; left: 34%;" onclick="startPetalRain()"></div>
-            
-            <div class="poi" style="top: 72%; left: 16%;" onclick="alert('📍 起点：翠竹园\n集合时间：09:30')"></div>
-            
-            <div class="poi" style="top: 27%; left: 81%;" onclick="alert('📍 终点：夕阳观景台\n建议 17:30 前到达看落日')"></div>
-            
-            <div class="poi" style="top: 66%; left: 45%;" onclick="alert('🍱 湖畔野餐区\n大家在这里分享零食哦')"></div>
+            <img src="map.jpg" class="main-map">
+            <div class="poi" style="top: 55%; left: 34%;" onclick="showTip('樱花大道：点击屏幕上方开始飘雪')"></div>
+            <div class="poi" style="top: 72%; left: 16%;" onclick="showTip('起点：翠竹园 (9:30集合)')"></div>
+            <div class="poi" style="top: 27%; left: 81%;" onclick="showTip('终点：夕阳观景台')"></div>
         </div>
     </div>
 
-    <canvas id="petalCanvas" style="display:none;"></canvas>
-    <div class="hint">💡 双指缩放地图 | 点击红圈查看详情 | 点击樱花大道有惊喜</div>
+    <canvas id="petalCanvas"></canvas>
 
     <script>
-        // --- A. 缩放逻辑 ---
+        // 1. 初始化缩放
         const elem = document.getElementById('panzoom-element');
-        const pz = Panzoom(elem, {
-            maxScale: 5,
-            minScale: 0.5,
-            contain: 'outside',
-            startScale: 1.0
-        });
+        const pz = Panzoom(elem, { maxScale: 5, contain: 'outside' });
         elem.parentElement.addEventListener('wheel', pz.zoomWithWheel);
 
-        // --- B. 桃花雨逻辑 ---
+        // 2. 信息提示逻辑
+        const infoBar = document.getElementById('info-bar');
+        function showTip(msg) {
+            infoBar.innerText = msg;
+            infoBar.style.display = 'block';
+            if(msg.includes('樱花')) startPetals();
+            setTimeout(() => infoBar.style.display = 'none', 3000);
+        }
+
+        // 3. 原生 Canvas 绘图桃花雨 (无图片版本)
         const canvas = document.getElementById('petalCanvas');
         const ctx = canvas.getContext('2d');
-        let animationId = null;
         let petals = [];
-        const petalImg = new Image();
-        petalImg.src = 'petal.png'; 
 
         function resize() {
             canvas.width = window.innerWidth;
@@ -83,56 +69,53 @@
 
         class Petal {
             constructor() {
+                this.reset();
+            }
+            reset() {
                 this.x = Math.random() * canvas.width;
                 this.y = Math.random() * -canvas.height;
-                this.w = 15 + Math.random() * 15;
-                this.h = this.w;
-                this.opacity = 0.6 + Math.random() * 0.4;
-                this.speedY = 1.2 + Math.random() * 1.5;
-                this.speedX = -1 + Math.random() * 2;
-                this.rotation = Math.random() * 360;
-                this.rotationSpeed = Math.random() * 2 - 1;
+                this.size = 5 + Math.random() * 8;
+                this.speedY = 1 + Math.random() * 2;
+                this.speedX = -1 + Math.random() * 1;
+                this.angle = Math.random() * Math.PI * 2;
             }
             update() {
                 this.y += this.speedY;
                 this.x += this.speedX;
-                this.rotation += this.rotationSpeed;
-                if (this.y > canvas.height) {
-                    this.y = -20;
-                    this.x = Math.random() * canvas.width;
-                }
+                this.angle += 0.02;
+                if (this.y > canvas.height) this.reset();
             }
             draw() {
                 ctx.save();
-                ctx.globalAlpha = this.opacity;
                 ctx.translate(this.x, this.y);
-                ctx.rotate(this.rotation * Math.PI / 180);
-                if (petalImg.complete) {
-                    ctx.drawImage(petalImg, -this.w/2, -this.h/2, this.w, this.h);
-                } else {
-                    ctx.fillStyle = '#ffb7c5';
-                    ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI*2); ctx.fill();
-                }
+                ctx.rotate(this.angle);
+                ctx.fillStyle = "#ffb7c5"; // 桃花粉
+                
+                // 关键：用绘图路径画一个简单的花瓣形
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.bezierCurveTo(-this.size, -this.size, -this.size, this.size, 0, this.size);
+                ctx.bezierCurveTo(this.size, this.size, this.size, -this.size, 0, 0);
+                ctx.fill();
                 ctx.restore();
             }
+        }
+
+        function initPetals() {
+            petals = Array.from({ length: 50 }, () => new Petal());
         }
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             petals.forEach(p => { p.update(); p.draw(); });
-            animationId = requestAnimationFrame(animate);
+            requestAnimationFrame(animate);
         }
 
-        function startPetalRain() {
-            if (animationId) return;
-            canvas.style.display = 'block';
-            petals = Array.from({ length: 150 }, () => new Petal());
-            animate();
-            setTimeout(() => {
-                cancelAnimationFrame(animationId);
-                animationId = null;
-                canvas.style.display = 'none';
-            }, 8000); // 8秒后自动停止
+        function startPetals() {
+            if (petals.length === 0) {
+                initPetals();
+                animate();
+            }
         }
     </script>
 </body>
