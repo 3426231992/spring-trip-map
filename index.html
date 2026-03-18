@@ -1,85 +1,138 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>春游手绘路线图 - 互动版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>春日漫步·交互地图</title>
+    <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
     <style>
-        body { margin: 0; padding: 0; font-family: "Microsoft YaHei", sans-serif; background: #fdf6e3; text-align: center; }
-        .map-container { position: relative; display: inline-block; margin-top: 20px; max-width: 100%; }
-        /* 这是背景图，建议换成你保存下来的手绘图链接 */
-        .map-image { width: 100%; height: auto; display: block; border: 5px solid #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 10px; }
+        body { margin: 0; padding: 0; background: #fdf6e3; overflow: hidden; touch-action: none; font-family: sans-serif; }
         
-        /* 交互热点样式 */
-        .spot {
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            background: rgba(255, 255, 255, 0.3);
-            border: 2px solid #ff6b6b;
-            border-radius: 50%;
-            cursor: pointer;
-            animation: pulse 2s infinite;
-        }
+        /* 视口容器 */
+        #viewport { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        
+        /* 缩放层：点位在这个层级，会随地图同步放大 */
+        #panzoom-element { position: relative; display: inline-block; cursor: grab; }
+        
+        .main-map { display: block; height: 90vh; width: auto; border: 3px solid #e1d3b0; border-radius: 8px; }
 
-        /* 预设三个点位（百分比定位，适应不同手机屏幕） */
-        #spot1 { top: 45%; left: 30%; } /* 樱花大道 */
-        #spot2 { top: 55%; left: 50%; } /* 野餐区 */
-        #spot3 { top: 25%; left: 80%; } /* 观景台 */
+        /* 交互点位样式 */
+        .poi {
+            position: absolute; width: 28px; height: 28px;
+            background: rgba(255, 87, 34, 0.7); border: 2px solid #fff; border-radius: 50%;
+            transform: translate(-50%, -50%); cursor: pointer; z-index: 10;
+            animation: pulse 1.8s infinite;
+        }
 
         @keyframes pulse {
-            0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(255, 107, 107, 0); }
-            100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(255, 107, 107, 0); }
+            0% { transform: translate(-50%, -50%) scale(0.9); box-shadow: 0 0 0 0 rgba(255,255,255, 0.8); }
+            70% { transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 0 0 12px rgba(255,255,255, 0); }
+            100% { transform: translate(-50%, -50%) scale(0.9); box-shadow: 0 0 0 0 rgba(255,255,255, 0); }
         }
 
-        /* 弹窗样式 */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 80%;
-            background: white;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.3);
-            z-index: 100;
-        }
-        .modal h3 { color: #ff6b6b; margin-top: 0; }
-        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 99; }
-        .close-btn { margin-top: 15px; padding: 8px 20px; background: #ff6b6b; color: white; border: none; border-radius: 5px; }
+        /* 桃花雨画布：固定在屏幕最上层，不随缩放移动 */
+        #petalCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
+        
+        .hint { position: fixed; bottom: 15px; width: 100%; text-align: center; color: #8d7a5b; font-size: 12px; pointer-events: none; }
     </style>
 </head>
 <body>
 
-    <h2>点击图标查看景点详情</h2>
-
-    <div class="map-container">
-        <img src="Gemini_Generated_Image_ngcld3ngcld3ngcl.png" class="map-image" alt="春游地图">
-        
-        <div class="spot" id="spot1" onclick="showDetail('🌸 樱花大道', '10:00 举行摄影大赛，现场提供免费汉服体验。')"></div>
-        <div class="spot" id="spot2" onclick="showDetail('🍱 湖畔野餐区', '12:00 自助野餐开始，每人可领取一份精致餐盒。')"></div>
-        <div class="spot" id="spot3" onclick="showDetail('⛰️ 夕阳观景台', '17:30 全体集合拍摄大合照，记录最美日落时刻。')"></div>
+    <div id="viewport">
+        <div id="panzoom-element">
+            <img src="map.jpg" class="main-map" id="mapImg">
+            
+            <div class="poi" style="top: 55%; left: 34%;" onclick="startPetalRain()"></div>
+            
+            <div class="poi" style="top: 72%; left: 16%;" onclick="alert('📍 起点：翠竹园\n集合时间：09:30')"></div>
+            
+            <div class="poi" style="top: 27%; left: 81%;" onclick="alert('📍 终点：夕阳观景台\n建议 17:30 前到达看落日')"></div>
+            
+            <div class="poi" style="top: 66%; left: 45%;" onclick="alert('🍱 湖畔野餐区\n大家在这里分享零食哦')"></div>
+        </div>
     </div>
 
-    <div class="overlay" id="overlay" onclick="closeModal()"></div>
-    <div class="modal" id="modal">
-        <h3 id="modal-title">景点介绍</h3>
-        <p id="modal-content">这里是详细内容...</p>
-        <button class="close-btn" onclick="closeModal()">我知道了</button>
-    </div>
+    <canvas id="petalCanvas" style="display:none;"></canvas>
+    <div class="hint">💡 双指缩放地图 | 点击红圈查看详情 | 点击樱花大道有惊喜</div>
 
     <script>
-        function showDetail(title, content) {
-            document.getElementById('modal-title').innerText = title;
-            document.getElementById('modal-content').innerText = content;
-            document.getElementById('modal').style.display = 'block';
-            document.getElementById('overlay').style.display = 'block';
+        // --- A. 缩放逻辑 ---
+        const elem = document.getElementById('panzoom-element');
+        const pz = Panzoom(elem, {
+            maxScale: 5,
+            minScale: 0.5,
+            contain: 'outside',
+            startScale: 1.0
+        });
+        elem.parentElement.addEventListener('wheel', pz.zoomWithWheel);
+
+        // --- B. 桃花雨逻辑 ---
+        const canvas = document.getElementById('petalCanvas');
+        const ctx = canvas.getContext('2d');
+        let animationId = null;
+        let petals = [];
+        const petalImg = new Image();
+        petalImg.src = 'petal.png'; 
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
         }
-        function closeModal() {
-            document.getElementById('modal').style.display = 'none';
-            document.getElementById('overlay').style.display = 'none';
+        window.addEventListener('resize', resize);
+        resize();
+
+        class Petal {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * -canvas.height;
+                this.w = 15 + Math.random() * 15;
+                this.h = this.w;
+                this.opacity = 0.6 + Math.random() * 0.4;
+                this.speedY = 1.2 + Math.random() * 1.5;
+                this.speedX = -1 + Math.random() * 2;
+                this.rotation = Math.random() * 360;
+                this.rotationSpeed = Math.random() * 2 - 1;
+            }
+            update() {
+                this.y += this.speedY;
+                this.x += this.speedX;
+                this.rotation += this.rotationSpeed;
+                if (this.y > canvas.height) {
+                    this.y = -20;
+                    this.x = Math.random() * canvas.width;
+                }
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.opacity;
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation * Math.PI / 180);
+                if (petalImg.complete) {
+                    ctx.drawImage(petalImg, -this.w/2, -this.h/2, this.w, this.h);
+                } else {
+                    ctx.fillStyle = '#ffb7c5';
+                    ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI*2); ctx.fill();
+                }
+                ctx.restore();
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            petals.forEach(p => { p.update(); p.draw(); });
+            animationId = requestAnimationFrame(animate);
+        }
+
+        function startPetalRain() {
+            if (animationId) return;
+            canvas.style.display = 'block';
+            petals = Array.from({ length: 150 }, () => new Petal());
+            animate();
+            setTimeout(() => {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+                canvas.style.display = 'none';
+            }, 8000); // 8秒后自动停止
         }
     </script>
 </body>
